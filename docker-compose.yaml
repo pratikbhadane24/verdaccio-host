@@ -1,0 +1,118 @@
+# Coolify-ready Verdaccio deployment.
+#
+# Local:   `docker compose up -d`  (uses .env)
+# Coolify: paste this repo, set env vars in UI, deploy.
+#
+# All knobs come from environment - no file edits required.
+# Verdaccio sentinels like `$authenticated` are escaped as `$$authenticated`
+# so docker compose emits a literal `$` into the rendered config file.
+
+services:
+  verdaccio:
+    image: verdaccio/verdaccio:${VERDACCIO_VERSION:-6}
+    restart: ${RESTART_POLICY:-unless-stopped}
+    ports:
+      # Coolify routes via reverse proxy to internal 4873; this also exposes for local dev.
+      - "${VERDACCIO_PORT:-4873}:4873"
+    environment:
+      - VERDACCIO_PORT=4873
+      # In Coolify, use magic var SERVICE_FQDN_VERDACCIO_4873 to auto-generate domain:
+      #   VERDACCIO_PUBLIC_URL=https://$SERVICE_FQDN_VERDACCIO_4873
+      - VERDACCIO_PUBLIC_URL=${VERDACCIO_PUBLIC_URL:-http://localhost:4873}
+    configs:
+      - source: verdaccio_config
+        target: /verdaccio/conf/config.yaml
+        mode: 0444
+    volumes:
+      - verdaccio_storage:/verdaccio/storage
+      - verdaccio_plugins:/verdaccio/plugins
+    healthcheck:
+      # 127.0.0.1 not localhost: alpine resolves localhost to ::1 (IPv6),
+      # verdaccio listens IPv4 0.0.0.0 only.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:4873/-/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  verdaccio_storage:
+  verdaccio_plugins:
+
+configs:
+  verdaccio_config:
+    content: |
+      storage: /verdaccio/storage
+      plugins: /verdaccio/plugins
+
+      web:
+        title: ${REGISTRY_TITLE:-Verdaccio}
+        primary_color: "${REGISTRY_PRIMARY_COLOR:-#4b5e40}"
+        gravatar: false
+
+      auth:
+        htpasswd:
+          file: /verdaccio/storage/htpasswd
+          # Set MAX_USERS=-1 in env after creating users to lock signup.
+          max_users: ${MAX_USERS:-1000}
+          algorithm: bcrypt
+          rounds: ${BCRYPT_ROUNDS:-12}
+
+      uplinks:
+        npmjs:
+          url: ${UPLINK_NPMJS_URL:-https://registry.npmjs.org/}
+          cache: true
+          timeout: 30s
+          maxage: 2m
+          agent_options:
+            keepAlive: true
+            maxSockets: 40
+            maxFreeSockets: 10
+
+      packages:
+        '${PRIVATE_SCOPE:-@pratikbhadane24}/*':
+          access: $$authenticated
+          publish: $$authenticated
+          unpublish: $$authenticated
+          proxy: npmjs
+
+        '@*/*':
+          access: $$authenticated
+          publish: $$authenticated
+          unpublish: $$authenticated
+          proxy: npmjs
+
+        '**':
+          access: $$authenticated
+          publish: $$authenticated
+          unpublish: $$authenticated
+          proxy: npmjs
+
+      server:
+        keepAliveTimeout: 60
+        trust_proxy: '${TRUST_PROXY:-127.0.0.1}'
+
+      middlewares:
+        audit:
+          enabled: true
+
+      log:
+        type: stdout
+        format: pretty
+        level: http
+
+      security:
+        api:
+          legacy: true
+          jwt:
+            sign:
+              expiresIn: 90d
+              notBefore: 0
+        web:
+          sign:
+            expiresIn: 7d
+
+      listen:
+        - 0.0.0.0:4873
+
+      url_prefix: ${VERDACCIO_PUBLIC_URL:-http://localhost:4873}
