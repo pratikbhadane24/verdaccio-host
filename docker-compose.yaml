@@ -115,4 +115,7 @@ configs:
       listen:
         - 0.0.0.0:4873
 
-      url_prefix: ${VERDACCIO_PUBLIC_URL:-http://localhost:4873}
+      # NOTE: no url_prefix. Behind a reverse proxy (Coolify/Traefik/nginx),
+      # verdaccio derives tarball URLs from X-Forwarded-Host + X-Forwarded-Proto
+      # because trust_proxy is set. Setting url_prefix here causes doubled URLs
+      # for scoped tarballs (npm 10+).

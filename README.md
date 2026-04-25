@@ -122,6 +122,16 @@ docker compose exec verdaccio sh              # shell
 
 ---
 
+## Tests
+
+Self-contained e2e suite covering private publish/install, public proxy, catch-all routing, auth, persistence, cache:
+
+```bash
+./tests/e2e.sh
+```
+
+Spins up an isolated stack on port `14873`, runs 12 checks, tears down. Does not touch your dev/prod stack. See [tests/README.md](tests/README.md).
+
 ## Notes
 
 - Compose substitutes `${VAR}` in the embedded `configs.content` at deploy time. Verdaccio's literal `$authenticated` is escaped as `$$authenticated` so compose emits a single `$` to the file.

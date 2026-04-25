@@ -1,0 +1,11 @@
+{
+  "name": "@pratikbhadane24/e2e-fixture",
+  "version": "0.0.1",
+  "description": "E2E test fixture - publishes to private scope",
+  "main": "index.js",
+  "license": "UNLICENSED",
+  "private": false,
+  "publishConfig": {
+    "access": "restricted"
+  }
+}
